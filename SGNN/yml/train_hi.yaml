@@ -1,0 +1,53 @@
+data :
+  pickle_dir : '../pickles/'
+  pickle_name : 'uav_train_sfcn_shallow.pickle'
+  val_pickle_name : ''
+  # pickle_name : 'city_train_sfcn_shallow.pickle'
+  # val_pickle_name : 'city_val_sfcn_shallow.pickle'
+  shuffle :  True
+  val_holdout_frac : 0.15
+  result_dir : 'results'
+  
+training :
+  gpu :
+    use : True
+    id : 0
+  seed : 42
+  epochs : 10000
+  weight_decay : 0.0001 
+  n_classes : 8 # uav : 8 / city : 20 
+  patience :  50
+  init_lr : 0.001
+  optim : 'Adam'
+  batch_size : 4
+  eval_interval : 10
+  
+test :
+  test_pickle_name : 'uav_test_sfcn.pickle'
+  # test_pickle_name : 'city_test_sfcn.pickle'
+  wandb_name :  'city_sfcn_0.001_Adam_256_256_10_2_SPL_1636265182'
+  ckpt_file : 'final.pth'
+  ckpt_dir : 'results'
+  
+# sampler options
+sampler :
+  sampler_true : False
+  sampler_neighbor : [6,6,5,4,3,2,1,1,1,1]
+  sampler_weight : [0.01, 0.011, 0.0110, 0.1316, 0.012, 0.0145, 1.9920, 0.0995]
+# wandb options
+wandb : False
+wandb_proj_name : 'MLVU_project'
+
+
+# options
+in_dim : 5
+loss : 'ce' # ce, wce, spl, tvs
+in_feat_dropout : 0.5
+dropout : 0.5
+sage_aggregator : 'gcn' # 'mean'
+batch_norm : True
+residual : False
+readout : 0.5
+hidden_dim : 256
+out_dim : 256
+Layer : 10
