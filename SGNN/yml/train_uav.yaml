@@ -1,15 +1,7 @@
 data :
   pickle_dir : '../pickles/'
-  # pickle_name : 'uav_sfcn_train_small.pickle'S
-  # pickle_name : 'uav_sfcn_train_small_2048.pickle'
-  # pickle_name : 'uav_sfcn_train_small_2048.pickle'
   pickle_name : 'uav_sfcn_patch_2048_ver3.pickle'
-  
-  
-  
-  
   val_pickle_name : ''
-  
   shuffle :  True
   val_holdout_frac : 0.2
   result_dir : 'checkpoints'
@@ -17,7 +9,7 @@ data :
 training :
   gpu :
     use : True
-    id : 3
+    id : 0
   seed : 42
   epochs : 10000
   weight_decay : 0.0001 
@@ -37,17 +29,10 @@ learning_rate :
   gamma : 0.5  #step option
   milsestone : [200, 300, 400, 450]  # step option
   
-  
 test :
-  # test_pickle_name : 'uav_sfcn_patch_val_2048.pickle'
-  
   test_pickle_name : 'uav_sfcn_val_origin.pickle'
-  # test_pickle_name : 'uav_sfcn_patch_val_512.pickle'
   wandb_name :  'uav_patch_0.001_Adam_256_256_12_4_tag_12_splce_1638323190'
-  # train_id :  '1637235526'
   ckpt_file : 'final.pth'
-  # ckpt_file : 'epoch_132_ckpt.pth'
-
   ckpt_dir : 'checkpoints'
   save_result_dir : 'results'
 test_mode : False
@@ -61,7 +46,6 @@ sampler :
 wandb : True
 wandb_proj_name : 'NEW-1127'
 
-
 # model optionss
 
 in_dim : 5
@@ -69,7 +53,6 @@ loss : 'splce' # ce, wce, spl, tvs
 in_feat_dropout : 0.5
 dropout : 0.5
 
-# dgl_builtin : True
 dgl_builtin : True
 # if dgl_builtin is False, sage_aggregator is matter
 sage_aggregator : 'mean' # 'mean' 
@@ -78,9 +61,8 @@ multi_scale_mode :
   layer_scale_1 : 2
   layer_scale_2 : 4
   layer_scale_3 : 8
-  
 # https://docs.dgl.ai/en/0.6.x/api/python/nn.pytorch.html#relgraphconv
-# [sage, densesage, cheb, tag, sg, graph]
+# [sage, densesage, cheb, tag, sg, graph, appnp]
 
 conv_type : 'tag' # default : sage
 batch_norm : True
