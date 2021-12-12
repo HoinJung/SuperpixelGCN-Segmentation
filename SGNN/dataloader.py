@@ -10,7 +10,7 @@ import numpy as np
 from torch.utils.data.sampler import SubsetRandomSampler
 from dgl.dataloading.pytorch import NodeDataLoader
 from dgl.dataloading import MultiLayerNeighborSampler
-from dgl.distributed import dist_dataloader
+from dgl.distributed import DistDataLoader
 
 
 class SgnnDataset(Dataset):
@@ -26,7 +26,7 @@ class SgnnDataset(Dataset):
             feature = row['feature']
             feature[:,:3] = feature[:,:3] / 255 # rgb normalization
             count = row['superpixel_num']  
-            count = count  / np.argmax(count)  # n / n_max
+            # count = coun t  / np.argmax(count)  # n / n_max
             edges = row['edges']
             label_gt = row['label_gt']
             num_nodes = len(label_gt)
@@ -40,13 +40,14 @@ class SgnnDataset(Dataset):
             dgel_graph.ndata['label'] = torch.from_numpy(np.array(label_gt))
             dgel_graph = dgl.add_self_loop(dgel_graph)
             self.graphs.append(dgel_graph)
-    
+        del self.raw_data # Save Memory!!
     def __getitem__(self, i):
         
         return self.graphs[i]
 
     def __len__(self):
-        return len(self.raw_data)
+        # return len(self.raw_data)
+        return len(self.graphs)
         
         
 def data_generator(config):
@@ -82,7 +83,7 @@ def data_generator(config):
         train_dataset = dgl.batch(train_dataset)
         val_dataset = dgl.batch(val_dataset)
 
-        # neighbor sampler (randomly select 5 neighbor nodes for all layers)
+        # neighbor sampler
         graph_sampler = dgl.dataloading.MultiLayerNeighborSampler(sampler_neighbor)
 
         # Weighted Random Sampler
@@ -91,10 +92,10 @@ def data_generator(config):
         train_sampler = torch.utils.data.sampler.WeightedRandomSampler(train_label_weights, len(train_label_weights), replacement=False)
         train_size_len = torch.tensor(np.arange(train_dataset.num_nodes())).to(torch.int32)
         val_size_len = torch.tensor(np.arange(val_dataset.num_nodes())).to(torch.int32)
-        train_loader = dgl.dataloading.NodeDataLoader(train_dataset, train_size_len, graph_sampler, 
-                                                  batch_size=batch_size, device='cpu', shuffle=True, drop_last=False)      
+        train_loader = dgl.dataloading.NodeDataLoader(train_dataset, train_size_len, graph_sampler, sampler=train_sampler,
+                                                  batch_size=batch_size, device='cpu', shuffle=False, drop_last=False)      
         val_loader = dgl.dataloading.NodeDataLoader(val_dataset, val_size_len, graph_sampler, 
-                                                  batch_size=batch_size, device='cpu', shuffle= True, drop_last=False)
+                                                  batch_size=batch_size, device='cpu', shuffle=True, drop_last=False)
 
         return train_loader, val_loader
     
@@ -103,12 +104,14 @@ def data_generator(config):
         
         train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, collate_fn = collate)
         val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False,collate_fn = collate)
+        # train_loader = DistDataLoader(train_dataset, batch_size=batch_size, shuffle=True, collate_fn = collate)
+        # val_loader = DistDataLoader(val_dataset, batch_size=batch_size, shuffle=False,collate_fn = collate)
 
         return train_loader, val_loader
 
 def get_sample_weights(labels, weights_list):
-    class_sample_count = torch.tensor([(labels == t).sum() for t in torch.unique(labels, sorted=True)])
-    # weight = 1000. / class_sample_count.float()
+    # class_sample_count = torch.tensor([(labels == t).sum() for t in torch.unique(labels, sorted=True)])
+    # weight = 1. / class_sample_count.float()
     weight = torch.tensor(weights_list)
     sample_weights = torch.tensor([weight[t.item()] for t in labels])
     return sample_weights

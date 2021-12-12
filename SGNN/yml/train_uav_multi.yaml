@@ -1,0 +1,90 @@
+data :
+  pickle_dir : '../pickles/'
+  # pickle_name : 'uav_sfcn_patch_2048_ver3.pickle'
+  pickle_name : 'uav_slic_train_2048.pickle'
+  # pickle_name : 'uav_slic_train_origin.pickle'
+  # pickle_name : 'uav_sfcn_train_small_2048.pickle'
+  
+  val_pickle_name : ''
+  
+  shuffle :  True
+  val_holdout_frac : 0.2
+  result_dir : 'checkpoints'
+  
+training :
+  gpu :
+    use : True
+    id : 3
+  seed : 42
+  epochs : 10000
+  weight_decay : 0.0001 
+  n_classes : 8 # uav : 8 / city : 20 
+  patience :  30
+  init_lr : 0.001
+  optim : 'Adam'
+  batch_size : 4
+  eval_interval : 100
+  save_best_epoch_pth : True
+  
+learning_rate :
+  scheduler : True
+  lr_scheduler : 'step' 
+  eta_min : 0.00001 # cosine option
+  T_max : 400 # cosine option
+  gamma : 0.4  #step option
+  milsestone :  [200, 300, 400, 450, 500, 550] # step option
+  
+  
+test :
+  # test_pickle_name : 'uav_sfcn_val_origin.pickle'
+  test_pickle_name : 'uav_slic_val_origin.pickle'
+  
+  # test_pickle_name : 'uav_sfcn_patch_val_2048.pickle'
+  # wandb_name :  'uav_patch_0.001_Adam_256_256_12_4_tag_12_splce_1639099702'
+  wandb_name : 'uav_train_0.001_Adam_256_256_12_4_tag_12_splce_1639208458'
+  # train_id :  '1637235526'
+  ckpt_file : 'final.pth'
+  # ckpt_file : 'epoch_398_ckpt.pth'
+
+  ckpt_dir : 'checkpoints'
+  save_result_dir : 'results'
+  
+# sampler options
+sampler :
+  sampler_true : False
+  sampler_neighbor : [6,6,5,4,3,2,1,1,1,1]
+  sampler_weight : [0.01, 0.011, 0.0110, 0.1316, 0.012, 0.0145, 1.9920, 0.0995]
+  
+# wandb options
+wandb : True
+wandb_proj_name : 'NEW-1127'
+
+
+# model optionss
+
+in_dim : 5
+loss : 'splce' # ce, wce, spl, tvs
+in_feat_dropout : 0.5
+dropout : 0.5
+
+# dgl_builtin : True
+dgl_builtin : True
+# if dgl_builtin is False, sage_aggregator is matter
+sage_aggregator : 'mean' # 'mean' 
+multi_scale_mode : 
+  use_multi_scale : True
+  layer_scale_1 : 2
+  layer_scale_2 : 4
+  layer_scale_3 : 8
+  
+# https://docs.dgl.ai/en/0.6.x/api/python/nn.pytorch.html#relgraphconv
+# [sage, densesage, cheb, tag, sg, graph]
+
+conv_type : 'tag' # default : sage
+batch_norm : True
+residual : False
+readout : 0.5
+hidden_dim : 256
+out_dim : 256
+Layer : 12
+tag_kernal : 12

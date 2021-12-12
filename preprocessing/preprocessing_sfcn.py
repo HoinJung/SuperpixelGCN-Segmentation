@@ -30,7 +30,7 @@ import matplotlib.pyplot as plt
 
 
 
-os.environ['CUDA_VISIBLE_DEVICES']='3'
+os.environ['CUDA_VISIBLE_DEVICES']='2'
 parser = argparse.ArgumentParser(description='Argparse Tutorial')
 parser.add_argument('--num_nodes','-num', type=int, default=10000)
 parser.add_argument('--num_features','-feat', type=int, default=5)
@@ -117,14 +117,14 @@ def test(img, model):
 #       # plus 1 to make it consistent with the toolkit format
 #     np.savetxt(output_path, (spixel_label_map + 1).astype(int), fmt='%i',delimiter=",")
 
-    print('sfcn....end')
+    # print('sfcn....end')
 
     return spixel_label_map
 
 
 def get_graph_from_segments(image, gt, segments):
     # load the image and convert it to a floating point data type
-    print('graph....start')
+    # print('graph....start')
     num_nodes = np.max(segments)
     nodes = {
         node: {
@@ -133,9 +133,9 @@ def get_graph_from_segments(image, gt, segments):
             "label_list": [],
         } for node in range(num_nodes+1)
     }
-    print(num_nodes)
-    print(len(nodes))
-    print(image.shape)
+    # print(num_nodes)
+    # print(len(nodes))
+    # print(image.shape)
     height = image.shape[0]
     width = image.shape[1]
     for y in range(height):
@@ -161,10 +161,12 @@ def get_graph_from_segments(image, gt, segments):
         nodes[node]["label_list"] = np.stack(nodes[node]["label_list"])
         # rgb
         rgb_mean = np.mean(nodes[node]["rgb_list"], axis=0)
-        
+        # rgb_var = np.var(nodes[node]["rgb_list"], axis=0)
+        # rgb_mean = np.concatenate(rgb_mean, rgb_var)
         # Pos
         pos_mean = np.mean(nodes[node]["pos_list"], axis=0)
-        
+        # pos_var = np.var(nodes[node]["pos_list"], axis=0)
+        # pos_mean = np.concatenate(pos_mean, pos_var)
         # label
         uniq, cnts = np.unique(nodes[node]["label_list"],return_counts=True)
         
@@ -187,9 +189,15 @@ def get_graph_from_segments(image, gt, segments):
     
     # From https://stackoverflow.com/questions/26237580/skimage-slic-getting-neighbouring-segments
     segments_ids = np.unique(segments)
+    segments_ids = torch.from_numpy(segments_ids)
+    segments_ids = segments_ids.to(torch.device(device))
+    
+    segments_torch = torch.from_numpy(segments)
+    segments_torch = segments_torch.to(torch.device(device))
+    centers = np.array((torch.mean(torch.nonzero(segments_torch==i),axis=1) for i in segments_ids))
 
     # centers
-    centers = np.array([np.mean(np.nonzero(segments==i),axis=1) for i in segments_ids])
+    # centers = np.array([np.mean(np.nonzero(segments==i),axis=1) for i in segments_ids])
 
     vs_right = np.vstack([segments[:,:-1].ravel(), segments[:,1:].ravel()])
     vs_below = np.vstack([segments[:-1,:].ravel(), segments[1:,:].ravel()])
@@ -218,70 +226,70 @@ def get_graph_from_segments(image, gt, segments):
     for i in G.nodes:
         h[i,:] = G.nodes[i]["features"]
     #end for
-    print('graph....end')
+    # print('graph....end')
     return G, h, edges, rgb_list, pos_list, label_list
 
 
-def main():
-    data_list= []
-    phase = 'val'
-    # for phase in phases :
-    path = f'../data/uavid_{phase}/'
-    file_list = glob.glob(f'{path}/**/*.png',recursive=True)
-    cnt = 0
-    pretrained = './superpixels/superpixel_fcn/pretrain_ckpt/SpixelNet_bsd_ckpt.tar'
-    
-    os.environ['CUDA_VISIBLE_DEVICES'] = '1'
-     # create model
-    network_data = torch.load(pretrained)
-    print("=> using pre-trained model '{}'".format(network_data['arch']))
-    model = models.__dict__[network_data['arch']]( data = network_data).cuda()
-    model.eval()
-    args.arch = network_data['arch']
-    cudnn.benchmark = True
 
-    for file in tqdm(file_list) : 
-        filedir = file.split('/')
+data_list= []
+phase = 'train'
+# for phase in phases :
+#path = f'../data/uavid/uavid_{phase}_patch(2048)/'
+path = f'../data/uavid/uavid_train/'
+file_list = glob.glob(f'{path}/**/*.png',recursive=True)
 
-        seq = filedir[3]
-        type_img=filedir[-2]
-        img_name = filedir[-1].split('.')[0]
-        img_id = "_".join([type_img, seq, img_name])
-        if type_img == 'Images':
-            file_path = file
-            gt_path = file.replace('Images','Labels')
-            img = imread(file_path)
-            gt = imread(gt_path)
-            
-            ##############################
-            
-            # mean_time = 0
-            # for n in range(len(tst_lst)):
-              # time = test(args, model, tst_lst, save_path, n)
-              # mean_time += time
-            # print("avg_time per img: %.3f"%(mean_time/len(tst_lst)))
-            ##############################
-            segments = test(img, model)
-            # segments = slic(img,n_segments = desired_nodes, slic_zero = True)
-            asegments = np.array(segments)
-            clrEnc = UAVidColorTransformer()
-            trainId = clrEnc.transform(gt, dtype=np.uint8)
-            
-            G, h, edges, rgb_list, pos_list, label_list_gt = get_graph_from_segments(img, trainId, asegments)            
-            cnt+=1
-            data_list.append([file_path, img_id, asegments,gt_path,G, h, edges, rgb_list, pos_list,label_list_gt])
-            print('{} %'.format(cnt * 100 * 2/ len(file_list)))
-            # if cnt==4 :
-            #     break
-                
-    df = pd.DataFrame(data_list)
-    df.columns=['image_path','id','superpixel_segment','gt_path','G','feature','edges','rgb_mean','pos_mean','label_gt']
-    # df['label']=df['id'].str.replace('Images','Labels')
-    # df['label_path']=df['image_path'].str.replace('Images','Labels')
-    # df.to_csv('train.csv',index=False)
-    df.to_pickle(f'uav_traiffffn_sfcn_{desired_nodes}_{NUM_FEATURES}_{phase}.pickle')
+pretrained = './superpixels/superpixel_fcn/pretrain_ckpt/SpixelNet_bsd_ckpt.tar'
 
+os.environ['CUDA_VISIBLE_DEVICES'] = '0'
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+ # create model
+network_data = torch.load(pretrained)
+print("=> using pre-trained model '{}'".format(network_data['arch']))
+model = models.__dict__[network_data['arch']]( data = network_data).cuda()
+model.eval()
+args.arch = network_data['arch']
+cudnn.benchmark = True
+# print(file_list)
+cnt = 0
+for file in file_list : 
+    filedir = file.split('/')
 
+    seq = filedir[3]
+    type_img=filedir[-2]
+    img_name = filedir[-1].split('.')[0]
+    img_id = "_".join([type_img, seq, img_name])
+    if type_img == 'Images':
+        file_path = file
+        gt_path = file.replace('Images','Labels')
+        img = imread(file_path)
+        gt = imread(gt_path)           
+        segments = test(img, model)
 
-if __name__ == "__main__":
-    main()
+        asegments = np.array(segments)
+        clrEnc = UAVidColorTransformer()
+        trainId = clrEnc.transform(gt, dtype=np.uint8)
+        cnt +=1
+        # G, h, edges, rgb_list, pos_list, label_list_gt = get_graph_from_segments(img, gt, asegments)            
+        G, h, edges, rgb_list, pos_list, label_list_gt = get_graph_from_segments(img, trainId, asegments)            
+
+        data_list.append([file_path, img_id, asegments,gt_path,G, h, edges, label_list_gt])
+        print('{} %'.format(cnt * 100 * 2/ len(file_list)))
+        # if cnt == 3:
+        #     break
+
+df = pd.DataFrame(data_list)
+print(df.columns)
+df.columns=['image_path','id','superpixel_segment','gt_path','G','feature','edges','label_gt']
+import numpy as np
+s_num_list = []
+for idx, row in df.iterrows():
+    s_num = row['superpixel_segment']
+    _, count = np.unique(s_num, return_counts=True)
+    s_num_list.append(count)
+df['superpixel_num'] = np.array(s_num_list)
+df = df.drop(['image_path','id','superpixel_segment','gt_path'],axis=1)
+# df['label']=df['id'].str.replace('Images','Labels')
+# df['label_path']=df['image_path'].str.replace('Images','Labels')
+# df.to_csv('train.csv',index=False)
+#df.to_pickle(f'../pickles/uav_sfcn_patch_{phase}_2048.pickle')
+df.to_pickle(f'../pickles/uav_sfcn_train_origin.pickle')

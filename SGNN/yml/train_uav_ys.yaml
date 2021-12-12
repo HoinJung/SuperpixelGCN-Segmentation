@@ -1,0 +1,78 @@
+data :
+  pickle_dir : '../pickles/'
+  pickle_name : 'uav_sfcn_patch_1024_ver2.pickle'
+  val_pickle_name : ''
+  # pickle_name : 'city_train_sfcn_shallow.pickle'
+  # val_pickle_name : 'city_val_sfcn_shallow.pickle'
+  shuffle :  True
+  val_holdout_frac : 0.2
+  result_dir : 'checkpoints'
+  
+training :
+  gpu :
+    use : True
+    id : 1
+  seed : 42
+  epochs : 10000
+  weight_decay : 0.0001 
+  n_classes : 8 # uav : 8 / city : 20 
+  patience :  50
+  init_lr : 0.0001
+  optim : 'Adam'
+  batch_size : 16
+  eval_interval : 100
+  save_best_epoch_pth : True
+  
+learning_rate :
+  scheduler : False
+  lr_scheduler : 'cosine'
+  eta_min : 0.00001 # cosine option
+  T_max : 400 # cosine option
+  gamma : 0.5  #steop option
+  milsestone : [100, 200, 300, 400, 500]  # step option
+  
+  
+test :
+  test_pickle_name : 'uav_sfcn_patch_val_1024.pickle'
+  # test_pickle_name : 'city_test_sfcn.pickle'
+  wandb_name :  'uav_patch_0.001_Adam_512_512_8_16_tag_8_splce_1637475887'
+  train_id :  '1637235526'
+  # ckpt_file : 'final.pth'
+  ckpt_file : 'epoch_257_ckpt.pth'
+
+  ckpt_dir : 'checkpoints'
+  save_result_dir : 'results'
+  
+# sampler options
+sampler :
+  sampler_true : False
+  sampler_neighbor : [6,6,5,4,3,2,1,1,1,1]
+  sampler_weight : [0.01, 0.011, 0.0110, 0.1316, 0.012, 0.0145, 1.9920, 0.0995]
+  
+# wandb options
+wandb : False
+wandb_proj_name : 'MLVU_project_patch_ys'
+
+
+# model optionss
+
+in_dim : 5
+loss : 'splce' # ce, wce, spl, tvs
+in_feat_dropout : 0.5
+dropout : 0.5
+
+dgl_builtin : True
+# if dgl_builtin is False, sage_aggregator is matter
+sage_aggregator : 'mean' # 'mean' 
+
+# https://docs.dgl.ai/en/0.6.x/api/python/nn.pytorch.html#relgraphconv
+# [sage, densesage, cheb, tag, sg, graph]
+
+conv_type : 'tag' # default : sage
+batch_norm : True
+residual : False
+readout : 0.5
+hidden_dim : 512
+out_dim : 512
+Layer : 8
+tag_kernal : 8

@@ -4,7 +4,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
 import dgl
-from GraphSage import GraphSageNet, GraphSageNet_sampler
+from GraphSage import GraphSageNet, GraphSageNet_sampler, GraphMultiNet, GNN
 import easydict 
 import time
 from tqdm import tqdm
@@ -15,8 +15,8 @@ import warnings
 import wandb
 import time
 import argparse
-from loss import select_loss
-
+# from loss import select_loss
+import losses
 import yaml
 
 class Trainer(object):
@@ -35,9 +35,11 @@ class Trainer(object):
         self.save_dir = config['data']['checkpoint_dir']; os.makedirs(self.save_dir, exist_ok = True)
         self.n_class = config['training']['n_classes']
         self.sampler = config['sampler']['sampler_true']
-       
+        self.save_best_epoch_pth = config['training']['save_best_epoch_pth']
         self.eval_interval = config['training']['eval_interval']
-        
+       
+        # multi_scale mode
+        self.multi_scale = config['multi_scale_mode']['use_multi_scale']
             
         # code for wandb    
         self.wandb = config['wandb']
@@ -45,22 +47,48 @@ class Trainer(object):
         
         # make models and data 
         self.train_data , self.valid_data = data_generator(config)
-        self.loss = select_loss(config['loss'])
         
+        # select loss function
+        self.loss_name = config['loss']
+        selected_loss = losses.CustomLoss(self.loss_name)
+        self.loss = selected_loss.select_loss()
+        # self.loss = nn.CrossEntropyLoss()
+      
+        # use sampler or not
         if self.sampler :
             # sampler mode
             self.model = GraphSageNet_sampler(config).to(self.device)
+        elif self.multi_scale : 
+            self.model = GraphMultiNet(config).to(self.device)
+        elif config['test_mode']:
+            self.model = GNN(config).to(self.device)
         else : 
             # graph(?) mode
             self.model = GraphSageNet(config).to(self.device)
+            
+        
         # if you want to use multi-GPU
         # self.model = torch.nn.DataParallel(self.model)       
         
+        # select optimizer
         if self.optim == 'Adam' : 
             self.optimizer = torch.optim.Adam(self.model.parameters(), lr=self.lr)
         elif self.optim == 'SGD' : 
             self.optimizer = torch.optim.SGD(self.model.parameters(), lr=self.lr)
             
+        # select lr_scheduler
+        self.lr_scheduler = config['learning_rate']['lr_scheduler']
+        if config['learning_rate']['scheduler']:
+            if self.lr_scheduler =='cosine':
+                self.scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer=self.optimizer, 
+                                                                            T_max=config['learning_rate']['T_max'], 
+                                                                            eta_min=config['learning_rate']['eta_min'], 
+                                                                            )
+            elif self.lr_scheduler =='step':
+                self.scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer=self.optimizer,
+                                                                      milestones=config['learning_rate']['milsestone'], 
+                                                                      gamma=config['learning_rate']['gamma'])
+        
         # define wandb log name
         self.name =  '_'.join([
             config['data']['pickle_name'].split('_')[0],
@@ -71,8 +99,11 @@ class Trainer(object):
             str(config['out_dim']), 
             str(config['Layer']),
             str(config['training']['batch_size']), 
-            'class_weighted',
+            str(config['conv_type']),
+            str(config['tag_kernal']),
+            str(self.loss_name),
             str(config['data']['train_id'])
+            
         ])
         
         
@@ -96,9 +127,23 @@ class Trainer(object):
                     (input_nodes, seeds, blocks) = g_train
                     feature  = blocks[0].srcdata["feat"].to(self.device)
                     label = blocks[-1].dstdata['label'].to(self.device)
+                    weight = blocks[-1].dstdata['pixel_num'].to(self.device)
+                    # weight = g_train.ndata['pixel_num'].to(self.device)
                     blocks = [b.to(torch.device(self.device)) for b in blocks]
                     self.optimizer.zero_grad()
                     output = self.model(blocks, feature) 
+                    
+                elif self.multi_scale :
+                
+                    feature  = g_train.ndata['feat'].to(self.device)
+                    label = g_train.ndata['label'].to(self.device)
+                    weight = g_train.ndata['pixel_num'].to(self.device)
+                    G = g_train.to(self.device)
+                    self.optimizer.zero_grad()
+                    # output = self.model(G, feature)
+                    output_1, output_2, output_3 = self.model(G, feature)
+                    # output_1, output_2, output_3 , output_4= self.model(G, feature)
+                    
                 else : 
                     feature  = g_train.ndata['feat'].to(self.device)
                     label = g_train.ndata['label'].to(self.device)
@@ -106,14 +151,35 @@ class Trainer(object):
                     G = g_train.to(self.device)
                     self.optimizer.zero_grad()
                     output = self.model(G, feature) 
+                    
                 label = F.one_hot(label.to(torch.int64), self.n_class) # one-hot encoding 추가
-                label = torch.max(label, 1)[1]
-                loss = self.loss(output, label)
+                labels = torch.max(label, 1)[1]
+                if self.loss_name== 'ce':
+                    loss = self.loss(output, labels)
+                    
+                elif self.loss_name =='splmse':
+                    
+                    pass
+                
+                elif self.loss_name =='splce':
+                    if self.multi_scale :
+                        loss_1 =self.loss(output_1, labels, weight, self.n_class)
+                        loss_2 =self.loss(output_2, labels, weight, self.n_class)
+                        loss_3 =self.loss(output_3, labels, weight, self.n_class)
+                        # loss_4 =self.loss(output_4, labels, weight, self.n_class)
+                        loss = (loss_1 + loss_2  + loss_3)/3
+                        # loss = (loss_1 + loss_2  + loss_3 + loss_4)/4
+                        
+                    else : 
+                        loss =self.loss(output, labels, weight, self.n_class)
+                    
                 loss.backward()
                 loss_arr += [loss.item()]
+                
                 self.optimizer.step()
                 if( batch_idx % self.eval_interval == 0 ):
-                    print('    loss at batch {}: {}'.format(batch_idx, loss), flush=True)            
+                    print('    loss at batch {}: {}'.format(batch_idx, loss), flush=True)   
+                    
             with torch.no_grad(): 
                 self.model.eval()
                 torch.cuda.empty_cache()
@@ -128,26 +194,68 @@ class Trainer(object):
                         (input_nodes, seeds, blocks_val) = g_valid
                         feature_val  = blocks_val[0].srcdata['feat'].to(self.device)
                         label_val = blocks_val[-1].dstdata['label'].to(self.device)
+                        weight_val = blocks_val[-1].dstdata['pixel_num'].to(self.device)
                         blocks_val = [b.to(torch.device(self.device)) for b in blocks_val]
                         self.optimizer.zero_grad()
                         output_val = self.model(blocks_val, feature_val) 
+                    elif self.multi_scale :
+                
+                        feature_val  = g_valid.ndata['feat'].to(self.device)
+                        label_val = g_valid.ndata['label'].to(self.device)
+                        weight_val = g_valid.ndata['pixel_num'].to(self.device)
+                        G_val = g_valid.to(self.device)
+                        self.optimizer.zero_grad()
+                        # output = self.model(G, feature)
+                        output_val_1, output_val_2, output_val_3 = self.model(G_val, feature_val)
+                        # output_val_1, output_val_2, output_val_3, output_val_4 = self.model(G_val, feature_val)
                     else : 
                         feature_val  = g_valid.ndata['feat'].to(self.device)
                         label_val = g_valid.ndata['label'].to(self.device)
+                        weight_val = g_valid.ndata['pixel_num'].to(self.device)
                         G_val = g_valid.to(self.device)
                         self.optimizer.zero_grad()
                         output_val = self.model(G_val, feature_val) 
+                    
+                    
                     label_val_onehot = F.one_hot(label_val.to(torch.int64), self.n_class) # one-hot encoding 추가
-                    label_val = torch.max(label_val_onehot, 1)[1]
-                    loss_val = self.loss(output_val, label_val)
+                    labels_val = torch.max(label_val_onehot, 1)[1]
+                    
+                    if self.loss_name== 'ce':
+                        loss_val = self.loss(output_val, labels_val)
+                    elif self.loss_name =='splmse':
+                        loss_val =self.loss(output_val, labels_val, label_val_onehot, weight_val, self.n_class)
+                    elif self.loss_name =='splce':
+                        if self.multi_scale:
+                            loss_val_1 =self.loss(output_val_1, labels_val, weight_val, self.n_class)
+                            loss_val_2 =self.loss(output_val_2, labels_val, weight_val, self.n_class)
+                            loss_val_3 =self.loss(output_val_3, labels_val, weight_val, self.n_class)
+                            # loss_val_4 =self.loss(output_val_4, labels_val, weight_val, self.n_class)
+                            loss_val = (loss_val_1 + loss_val_2 + loss_val_3) /3
+                            # loss_val = (loss_val_1 + loss_val_2 + loss_val_3+loss_val_4) /4
+                        else : 
+                            loss_val =self.loss(output_val, labels_val, weight_val, self.n_class)
+                        
+                    # loss_val = self.loss(output_val, label_val)
                     val_loss.append(loss_val.item())
                     
                     # calculate accuracy
-                    pred = output_val.argmax(dim=1, keepdim=True)
+                    if self.multi_scale :
+                        output_val = (output_val_1 + output_val_2 + output_val_3)/3
+                        pred = output_val.argmax(dim=1, keepdim=True)
+                    else : 
+                        pred = output_val.argmax(dim=1, keepdim=True)
                     crr = pred.eq(label_val.view_as(pred)).sum().item()
                     acc = crr / len(pred)
                     val_acc.append(acc)
                     
+                    # class_acc = []
+                    # ## print ACC of each class 
+                    # for cl_index in range(8):
+                    #     #output_vals = F.softmax(output_val, dim = 1)  
+                    #     crr_cl = torch.sum((output_val[:,cl_index]>0.5)*label_val_onehot[:,cl_index])
+                    #     acc_cl = crr_cl / len(output_val)
+                    #     class_acc.append(acc_cl)
+                    #     # print('class:', cl_index, 'acc:', acc_cl)                    
     
             print("validation loss : {:.6f}".format( np.mean(val_loss) ))
             print("validation acc : {:.6f}".format( np.mean(val_acc) ))
@@ -159,7 +267,7 @@ class Trainer(object):
                            'batch':self.batch_size, 
                            'hidden_dim':self.config['hidden_dim'],
                            'out_dim':self.config['out_dim'],
-                           'layers':self.config['L'],
+                           'layers':self.config['Layer'],
                           })
 
             
@@ -178,7 +286,8 @@ class Trainer(object):
                     counter += 1
                 else :
                     best = val_loss
-                    self.save_model(PATH_ckpt)
+                    if self.save_best_epoch_pth :
+                        self.save_model(PATH_ckpt)
                     counter = 0
                     print("")
                     print("Model saved at epoch : {0:d}, validation loss : {1:.6f}".format(epoch+1,val_loss))
@@ -188,7 +297,8 @@ class Trainer(object):
             if stop:
                 print("EarlyStopping Trigger")
                 break
-
+            if self.config['learning_rate']['scheduler']:
+                self.scheduler.step()
             print("")
             print("")
         self.save_model(self.save_dir+'final.pth')
@@ -217,7 +327,8 @@ def parse(path):
 def main():
     now = int(time.time())
     parser = argparse.ArgumentParser()
-    parser.add_argument('--config_yaml','-yml', type=str, default='train_hi.yaml')
+    parser.add_argument('--config_yaml','-yml', type=str, default='train_uav.yaml')
+    # parser.add_argument('--tag_kernal','-tk', type=int, default=2)
     args = parser.parse_args()
     config_path = f'yml/{args.config_yaml}'
     
@@ -226,6 +337,7 @@ def main():
     ## add more config
     config['data']['checkpoint_dir'] = config['data']['result_dir']+ f'/ckpt_{now}/'
     config['data']['train_id'] = str(now)
+    # config['tag_kernal'] = args.tag_kernal
     if config['sampler']['sampler_true'] :
         sampler_list = config['sampler']['sampler_neighbor']
         print("Use Neighborhood sampler : {}".format(sampler_list))
