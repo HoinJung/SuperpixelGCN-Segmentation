@@ -4,7 +4,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
 import dgl
-from GraphSage import GraphSageNet, GraphSageNet_sampler, GraphMultiNet, GNN
+from GraphSage import GraphSageNet
 import easydict 
 import time
 from tqdm import tqdm
@@ -40,6 +40,7 @@ class Trainer(object):
        
         # multi_scale mode
         self.multi_scale = config['multi_scale_mode']['use_multi_scale']
+        
             
         # code for wandb    
         self.wandb = config['wandb']
@@ -92,15 +93,16 @@ class Trainer(object):
         # define wandb log name
         self.name =  '_'.join([
             config['data']['pickle_name'].split('_')[0],
-            config['data']['pickle_name'].split('_')[2],
+            # config['data']['pickle_name'].split('_')[2],
             str(self.lr),
             str(self.optim), 
             str(config['hidden_dim']), 
-            str(config['out_dim']), 
+            # str(config['out_dim']), 
             str(config['Layer']),
             str(config['training']['batch_size']), 
             str(config['conv_type']),
             str(config['tag_kernal']),
+            str(config['appnp_rate']),
             str(self.loss_name),
             str(config['data']['train_id'])
             
@@ -166,9 +168,7 @@ class Trainer(object):
                         loss_1 =self.loss(output_1, labels, weight, self.n_class)
                         loss_2 =self.loss(output_2, labels, weight, self.n_class)
                         loss_3 =self.loss(output_3, labels, weight, self.n_class)
-                        # loss_4 =self.loss(output_4, labels, weight, self.n_class)
                         loss = (loss_1 + loss_2  + loss_3)/3
-                        # loss = (loss_1 + loss_2  + loss_3 + loss_4)/4
                         
                     else : 
                         loss =self.loss(output, labels, weight, self.n_class)
@@ -205,9 +205,8 @@ class Trainer(object):
                         weight_val = g_valid.ndata['pixel_num'].to(self.device)
                         G_val = g_valid.to(self.device)
                         self.optimizer.zero_grad()
-                        # output = self.model(G, feature)
                         output_val_1, output_val_2, output_val_3 = self.model(G_val, feature_val)
-                        # output_val_1, output_val_2, output_val_3, output_val_4 = self.model(G_val, feature_val)
+                        
                     else : 
                         feature_val  = g_valid.ndata['feat'].to(self.device)
                         label_val = g_valid.ndata['label'].to(self.device)
@@ -229,13 +228,13 @@ class Trainer(object):
                             loss_val_1 =self.loss(output_val_1, labels_val, weight_val, self.n_class)
                             loss_val_2 =self.loss(output_val_2, labels_val, weight_val, self.n_class)
                             loss_val_3 =self.loss(output_val_3, labels_val, weight_val, self.n_class)
-                            # loss_val_4 =self.loss(output_val_4, labels_val, weight_val, self.n_class)
+                    
                             loss_val = (loss_val_1 + loss_val_2 + loss_val_3) /3
-                            # loss_val = (loss_val_1 + loss_val_2 + loss_val_3+loss_val_4) /4
+                    
                         else : 
                             loss_val =self.loss(output_val, labels_val, weight_val, self.n_class)
                         
-                    # loss_val = self.loss(output_val, label_val)
+                    
                     val_loss.append(loss_val.item())
                     
                     # calculate accuracy
@@ -248,15 +247,6 @@ class Trainer(object):
                     acc = crr / len(pred)
                     val_acc.append(acc)
                     
-                    # class_acc = []
-                    # ## print ACC of each class 
-                    # for cl_index in range(8):
-                    #     #output_vals = F.softmax(output_val, dim = 1)  
-                    #     crr_cl = torch.sum((output_val[:,cl_index]>0.5)*label_val_onehot[:,cl_index])
-                    #     acc_cl = crr_cl / len(output_val)
-                    #     class_acc.append(acc_cl)
-                    #     # print('class:', cl_index, 'acc:', acc_cl)                    
-    
             print("validation loss : {:.6f}".format( np.mean(val_loss) ))
             print("validation acc : {:.6f}".format( np.mean(val_acc) ))
             if self.wandb:
@@ -328,16 +318,37 @@ def main():
     now = int(time.time())
     parser = argparse.ArgumentParser()
     parser.add_argument('--config_yaml','-yml', type=str, default='train_uav.yaml')
-    # parser.add_argument('--tag_kernal','-tk', type=int, default=2)
-    args = parser.parse_args()
-    config_path = f'yml/{args.config_yaml}'
+    parser.add_argument('--tag_kernal','-tk', type=int)
+    parser.add_argument('--conv_type','-conv', type=str)
+    parser.add_argument('--hidden_dim','-dim', type=int)
+    parser.add_argument('--Layer','-layer', type=int)
+    parser.add_argument('--appnp_rate','-appnp', type=float)
+    parser.add_argument('--gpu_id','-gpu', type=int)
+    parser.add_argument('--batch_size','-bs', type=int)
+    parser.add_argument('--batch_norm','-bn', type=str)
     
+
+
+    args = parser.parse_args()
+    config_path = f'yml/{args.config_yaml}'    
               
     config = parse(config_path)
     ## add more config
     config['data']['checkpoint_dir'] = config['data']['result_dir']+ f'/ckpt_{now}/'
     config['data']['train_id'] = str(now)
-    # config['tag_kernal'] = args.tag_kernal
+    config['tag_kernal'] = args.tag_kernal
+    config['conv_type'] = args.conv_type
+    config['hidden_dim'] = args.hidden_dim
+    config['out_dim'] = args.hidden_dim
+    config['Layer'] = args.Layer
+    config['appnp_rate'] = args.appnp_rate
+    config['batch_norm'] = args.batch_norm
+    
+    config['training']['batch_size'] = args.batch_size
+    config['training']['gpu']['id'] = args.gpu_id
+    
+    
+    
     if config['sampler']['sampler_true'] :
         sampler_list = config['sampler']['sampler_neighbor']
         print("Use Neighborhood sampler : {}".format(sampler_list))

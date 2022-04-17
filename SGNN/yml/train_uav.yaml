@@ -1,41 +1,45 @@
 data :
   pickle_dir : '../pickles/'
-  pickle_name : 'uav_sfcn_patch_2048_ver3.pickle'
-  val_pickle_name : ''
-  shuffle :  True
-  val_holdout_frac : 0.2
-  result_dir : 'checkpoints'
+  pickle_name : 'uav_train.pickle'
   
+  val_pickle_name : 'uav_val.pickle'
+  
+  shuffle :  True
+  val_holdout_frac : 0.15
+  result_dir : 'checkpoints'
 training :
   gpu :
     use : True
-    id : 0
+    id : 1
   seed : 42
   epochs : 10000
   weight_decay : 0.0001 
-  n_classes : 8 # uav : 8 / city : 20 
-  patience :  40
-  init_lr : 0.001
+  n_classes : 8 
+  # uav : 8 / city : 20 
+  patience :  50
+  init_lr : 0.002
   optim : 'Adam'
   batch_size : 4
-  eval_interval : 100
-  save_best_epoch_pth : True
-  
+  eval_interval : 40
+  save_best_epoch_pth : False
 learning_rate :
   scheduler : True
-  lr_scheduler : 'step' 
+  lr_scheduler : 'cosine' 
   eta_min : 0.00001 # cosine option
   T_max : 400 # cosine option
-  gamma : 0.5  #step option
-  milsestone : [200, 300, 400, 450]  # step option
+  gamma : 0.1  #step option
+  milsestone : [40,60,150]  # step option  
   
 test :
-  test_pickle_name : 'uav_sfcn_val_origin.pickle'
-  wandb_name :  'uav_patch_0.001_Adam_256_256_12_4_tag_12_splce_1638323190'
+  
+  test_pickle_name : 'uav_val.pickle'
+  
+  # wandb_name :  'city_train.pickle_0.001_Adam_256_256_8_8_appnp_8_splce_1643351469'
+  train_id :  '1645798514'
   ckpt_file : 'final.pth'
   ckpt_dir : 'checkpoints'
   save_result_dir : 'results'
-test_mode : False
+  
 # sampler options
 sampler :
   sampler_true : False
@@ -43,13 +47,15 @@ sampler :
   sampler_weight : [0.01, 0.011, 0.0110, 0.1316, 0.012, 0.0145, 1.9920, 0.0995]
   
 # wandb options
+# wandb : False
 wandb : True
-wandb_proj_name : 'NEW-1127'
+wandb_proj_name : 'SGNN'
+test_mode : False
 
 # model optionss
 
 in_dim : 5
-loss : 'splce' # ce, wce, spl, tvs
+loss : 'splce' # ce, wce, spl, tvs, splmse
 in_feat_dropout : 0.5
 dropout : 0.5
 
@@ -62,7 +68,7 @@ multi_scale_mode :
   layer_scale_2 : 4
   layer_scale_3 : 8
 # https://docs.dgl.ai/en/0.6.x/api/python/nn.pytorch.html#relgraphconv
-# [sage, densesage, cheb, tag, sg, graph, appnp]
+# [sage, densesage, cheb, tag, sg, graph]
 
 conv_type : 'tag' # default : sage
 batch_norm : True
@@ -71,4 +77,6 @@ readout : 0.5
 hidden_dim : 256
 out_dim : 256
 Layer : 12
-tag_kernal : 12
+tag_kernal : 4
+appnp_rate : 0.1
+

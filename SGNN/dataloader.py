@@ -11,6 +11,7 @@ from torch.utils.data.sampler import SubsetRandomSampler
 from dgl.dataloading.pytorch import NodeDataLoader
 from dgl.dataloading import MultiLayerNeighborSampler
 from dgl.distributed import DistDataLoader
+from dgl.data.utils import load_graphs
 
 
 class SgnnDataset(Dataset):
@@ -18,35 +19,16 @@ class SgnnDataset(Dataset):
         self.pickle_dir =  pickle_dir
         self.pickle_name = pickle_name
         self.graphs = []
-        self.raw_data = pd.read_pickle(self.pickle_dir+self.pickle_name)  
         
-        for idx, row in self.raw_data.iterrows():
-            
-            G = row['G']
-            feature = row['feature']
-            feature[:,:3] = feature[:,:3] / 255 # rgb normalization
-            count = row['superpixel_num']  
-            # count = coun t  / np.argmax(count)  # n / n_max
-            edges = row['edges']
-            label_gt = row['label_gt']
-            num_nodes = len(label_gt)
-            # print(num_nodes)
-            edges_src = torch.tensor(edges[:,0])
-            edges_dst = torch.tensor(edges[:,1])
-            dgel_graph = dgl.graph((edges_src , edges_dst), num_nodes=num_nodes, idtype=torch.int32)
-            
-            dgel_graph.ndata['feat'] = torch.from_numpy(feature)
-            dgel_graph.ndata['pixel_num'] = torch.from_numpy(count)
-            dgel_graph.ndata['label'] = torch.from_numpy(np.array(label_gt))
-            dgel_graph = dgl.add_self_loop(dgel_graph)
-            self.graphs.append(dgel_graph)
-        del self.raw_data # Save Memory!!
+        
+        glist, label_dict = load_graphs(self.pickle_dir+self.pickle_name.replace('pickle','bin'))    
+        self.graphs=glist
+        
     def __getitem__(self, i):
         
         return self.graphs[i]
 
     def __len__(self):
-        # return len(self.raw_data)
         return len(self.graphs)
         
         
@@ -67,19 +49,21 @@ def data_generator(config):
     sampler_weight = config['sampler']['sampler_weight']
     # call dataset
     print('Reading Train Dataset...')
-    if dataset_type=='city':
-        train_dataset = SgnnDataset(data_dir, data_name) 
-        val_dataset = SgnnDataset(data_dir, val_name) 
-    elif dataset_type=='uav':
+    
+    if dataset_type=='uav':
         # split dataset into train/valid
         dataset = SgnnDataset(data_dir, data_name) 
         train_size = int((1-validation_split) * len(dataset))
         val_size = len(dataset) - train_size
-        train_dataset, val_dataset = random_split(dataset, [train_size, val_size])   
+        train_dataset, val_dataset = random_split(dataset, [train_size, val_size])
+        
+    else :
+        train_dataset = SgnnDataset(data_dir, data_name) 
+        val_dataset = SgnnDataset(data_dir, val_name) 
+    
     print('Loading Train Dataset...')
     
     if sampler : 
-        # 모든 이미지 그래프를 하나의 batch graph로
         train_dataset = dgl.batch(train_dataset)
         val_dataset = dgl.batch(val_dataset)
 
@@ -104,14 +88,11 @@ def data_generator(config):
         
         train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, collate_fn = collate)
         val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False,collate_fn = collate)
-        # train_loader = DistDataLoader(train_dataset, batch_size=batch_size, shuffle=True, collate_fn = collate)
-        # val_loader = DistDataLoader(val_dataset, batch_size=batch_size, shuffle=False,collate_fn = collate)
 
         return train_loader, val_loader
 
 def get_sample_weights(labels, weights_list):
-    # class_sample_count = torch.tensor([(labels == t).sum() for t in torch.unique(labels, sorted=True)])
-    # weight = 1. / class_sample_count.float()
+    
     weight = torch.tensor(weights_list)
     sample_weights = torch.tensor([weight[t.item()] for t in labels])
     return sample_weights

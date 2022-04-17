@@ -9,11 +9,7 @@ import numpy as np
 class CustomLoss():
     def __init__(self,loss_name, pred=None,label=None,labels=None,superpixel_w=None,n_classes=None):
         self.loss_name = loss_name
-        # self.pred = pred
-        # self.label = label
-        # self.labels = labels
-        # self.superpixel_w = superpixel_w   
-        # self.n_classes = n_classes
+
     def select_loss(self):
         if self.loss_name == 'ce' :
             return nn.CrossEntropyLoss()
@@ -69,7 +65,9 @@ class superpixel_penalty_loss(nn.Module):
     def forward(self, pred, label, superpixel_w, n_classes):
         # print(pred[0])
         V = label.size(0)
+        
         label_count = torch.bincount(label)
+        
         label_count = label_count[label_count.nonzero()].squeeze()
         cluster_sizes = torch.zeros(n_classes).long().to(torch.device("cuda" if torch.cuda.is_available() else "cpu"))
         cluster_sizes[torch.unique(label)] = label_count
