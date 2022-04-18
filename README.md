@@ -12,7 +12,7 @@ The proposed method aims classify the label of each superpixel(node) using GCN, 
 <center><img src="./img/arch.png" width="100%" height="100%"></center>
 
 
-## Implementation
+## Implementation Detail
 ### Dataset
 You can download [UAVid](https://uavid.nl/) dataset from here.    
 Moreover, our framework can be used for various semantic segmentation dataset such as (DeepGlobe Landcover, ADE20K, Cityscapes, etc.)    
@@ -64,7 +64,7 @@ because ```*.bin``` file is a list of ```DGL``` graphs, where ```*.pickle``` con
 ### Set configures
 Most of options are shown in ```yml/train_uav.yaml```.    
 You can also use ```argparser``` in ```train.py``` instead of ```yaml``` configure.     
-```yaml``` works as default options, and ```argparser``` will override this configure.    
+```yaml``` works as default options, and you may be able to let ```argparser``` override default setting.   
 
 ### Wandb
 Be careful our methods contains ```wandb``` option.     
@@ -76,3 +76,9 @@ Otherwise, please change entity in ```wandb.init``` in ```train.py``` as your ``
 cd SGNN
 python train.py
 ```
+Checkpoints are saved every best epochs.    
+If you want to save memory space, ```save_best_epoch_pth=False``` in ```*.yaml``` to restore only ```final.pth```.    
+Note that ```trin_id``` will be created automatically following current Unix time.
+
+### Test and Evaluation
+Run ```test_eval_uav.ipynb```. It also follows configuration of ```train_uav.yaml```.    
