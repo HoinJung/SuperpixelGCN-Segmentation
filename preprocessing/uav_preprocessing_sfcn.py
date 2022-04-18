@@ -27,7 +27,7 @@ import matplotlib.pyplot as plt
 
 
 
-os.environ['CUDA_VISIBLE_DEVICES']='2'
+
 parser = argparse.ArgumentParser(description='Argparse Tutorial')
 parser.add_argument('--num_nodes','-num', type=int, default=10000)
 parser.add_argument('--num_features','-feat', type=int, default=5)
@@ -209,78 +209,73 @@ def get_graph_from_segments(image, gt, segments):
     return G, h, edges, rgb_list, pos_list, label_list
 
 
-def main():
-    phases = ['train','val']
 
-    for phase in phases :
-        data_list= []    
-        path = f'../data/uavid/uavid_{phase}/'
-        file_list = glob.glob(f'{path}/**/Images/*.png',recursive=True)
-        pretrained = './superpixels/superpixel_fcn/pretrain_ckpt/SpixelNet_bsd_ckpt.tar'
-        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-         # create model
-        network_data = torch.load(pretrained)
-        print("=> using pre-trained model '{}'".format(network_data['arch']))
+phases = ['train','val']
+os.environ['CUDA_VISIBLE_DEVICES']='2'
+for phase in phases :
+    data_list= []    
+    path = f'../data/uavid/uavid_{phase}/'
+    file_list = glob.glob(f'{path}/**/Images/*.png',recursive=True)
+    pretrained = './superpixels/superpixel_fcn/pretrain_ckpt/SpixelNet_bsd_ckpt.tar'
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+     # create model
+    network_data = torch.load(pretrained)
+    print("=> using pre-trained model '{}'".format(network_data['arch']))
 
-        print(f"Phase : {phase}")
-        model = models.__dict__[network_data['arch']]( data = network_data).cuda()
-        model.eval()
-        args.arch = network_data['arch']
-        cudnn.benchmark = True
-        cnt = 0  
-        for file in tqdm(file_list) :
-            img_path = file
-            gt_path = img_path.replace('Images','Labels')
-            img = imread(file)
-            gt = imread(gt_path)
+    print(f"Phase : {phase}")
+    model = models.__dict__[network_data['arch']]( data = network_data).cuda()
+    model.eval()
+    args.arch = network_data['arch']
+    cudnn.benchmark = True
+    cnt = 0  
+    for file in tqdm(file_list) :
+        img_path = file
+        gt_path = img_path.replace('Images','Labels')
+        img = imread(file)
+        gt = imread(gt_path)
 
-            segments = test(img, model)
-            clrEnc = UAVidColorTransformer()
-            gt_label = clrEnc.transform(gt, dtype=np.uint8)
-            asegments = np.array(segments)
-            cnt +=1
-            G, h, edges, rgb_list, pos_list, label_list_gt = get_graph_from_segments(img, gt_label, asegments)            
-            data_list.append([img_path, asegments,G, h, edges, label_list_gt])
+        segments = test(img, model)
+        clrEnc = UAVidColorTransformer()
+        gt_label = clrEnc.transform(gt, dtype=np.uint8)
+        asegments = np.array(segments)
+        cnt +=1
+        G, h, edges, rgb_list, pos_list, label_list_gt = get_graph_from_segments(img, gt_label, asegments)            
+        data_list.append([img_path, asegments,G, h, edges, label_list_gt])
 
-        df = pd.DataFrame(data_list)
-        print(df.columns)
-        df.columns=['id','superpixel_segment','G','feature','edges','label_gt']
+    df = pd.DataFrame(data_list)
+    print(df.columns)
+    df.columns=['id','superpixel_segment','G','feature','edges','label_gt']
 
-        s_num_list = []
-        for idx, row in df.iterrows():
-            s_num = row['superpixel_segment']
-            _, count = np.unique(s_num, return_counts=True)
-            s_num_list.append(count)
-        df['superpixel_num'] = np.array(s_num_list)
-        if phase == 'train':
-            df = df.drop(['superpixel_segment'],axis=1)
-        if phase == 'val':
-            df.to_pickle(f'../pickles/uav_{phase}_sfcn.pickle')
-        graphs = []
-        for idx, row in df.iterrows():
+    s_num_list = []
+    for idx, row in df.iterrows():
+        s_num = row['superpixel_segment']
+        _, count = np.unique(s_num, return_counts=True)
+        s_num_list.append(count)
+    df['superpixel_num'] = np.array(s_num_list)
+    if phase == 'train':
+        df = df.drop(['superpixel_segment'],axis=1)
+    if phase == 'val':
+        df.to_pickle(f'../pickles/uav_{phase}_sfcn.pickle')
+    graphs = []
+    for idx, row in df.iterrows():
 
-            G = row['G']
-            feature = row['feature']
-            feature[:,:3] = feature[:,:3] / 255 # rgb normalization
-            count = row['superpixel_num']  
-            edges = row['edges']
-            label_gt = row['label_gt']
-            num_nodes = len(label_gt)
-            edges_src = torch.tensor(edges[:,0])
-            edges_dst = torch.tensor(edges[:,1])
-            dgel_graph = dgl.graph((edges_src , edges_dst), num_nodes=num_nodes, idtype=torch.int32)
-            dgel_graph.ndata['feat'] = torch.from_numpy(feature)
-            dgel_graph.ndata['pixel_num'] = torch.from_numpy(count)
-            dgel_graph.ndata['label'] = torch.from_numpy(np.array(label_gt))
-            # dgel_graph = dgl.remove_self_loop(dgel_graph)
-            # dgel_graph = dgl.add_self_loop(dgel_graph)
-            graphs.append(dgel_graph)
-        graph_len = len(df)
-        graph_labels = {"glabel": torch.tensor([i for i in range(graph_len)])}
-        save_graphs(f'../pickles/uav_{phase}.bin', graphs, graph_labels)
+        G = row['G']
+        feature = row['feature']
+        feature[:,:3] = feature[:,:3] / 255 # rgb normalization
+        count = row['superpixel_num']  
+        edges = row['edges']
+        label_gt = row['label_gt']
+        num_nodes = len(label_gt)
+        edges_src = torch.tensor(edges[:,0])
+        edges_dst = torch.tensor(edges[:,1])
+        dgel_graph = dgl.graph((edges_src , edges_dst), num_nodes=num_nodes, idtype=torch.int32)
+        dgel_graph.ndata['feat'] = torch.from_numpy(feature)
+        dgel_graph.ndata['pixel_num'] = torch.from_numpy(count)
+        dgel_graph.ndata['label'] = torch.from_numpy(np.array(label_gt))
+        # dgel_graph = dgl.remove_self_loop(dgel_graph)
+        # dgel_graph = dgl.add_self_loop(dgel_graph)
+        graphs.append(dgel_graph)
+    graph_len = len(df)
+    graph_labels = {"glabel": torch.tensor([i for i in range(graph_len)])}
+    save_graphs(f'../pickles/uav_{phase}.bin', graphs, graph_labels)
         
-
-    
-
-if __name__ == "__main__":
-    main()

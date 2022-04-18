@@ -61,10 +61,8 @@ class Trainer(object):
             self.model = GraphSageNet_sampler(config).to(self.device)
         elif self.multi_scale : 
             self.model = GraphMultiNet(config).to(self.device)
-        elif config['test_mode']:
-            self.model = GNN(config).to(self.device)
         else : 
-            # graph(?) mode
+        
             self.model = GraphSageNet(config).to(self.device)
             
         
@@ -115,7 +113,7 @@ class Trainer(object):
         best = None
         
         if self.wandb:
-            run=wandb.init(project=self.wandb_proj_name,entity='snu-mlvu-gnn',name=self.name)
+            run=wandb.init(project=self.wandb_proj_name,entity='{your-wandb-name}',name=self.name)
             
         for epoch in range(self.epoch):
             self.model.train()
@@ -318,36 +316,18 @@ def main():
     now = int(time.time())
     parser = argparse.ArgumentParser()
     parser.add_argument('--config_yaml','-yml', type=str, default='train_uav.yaml')
-    parser.add_argument('--tag_kernal','-tk', type=int)
-    parser.add_argument('--conv_type','-conv', type=str)
-    parser.add_argument('--hidden_dim','-dim', type=int)
-    parser.add_argument('--Layer','-layer', type=int)
-    parser.add_argument('--appnp_rate','-appnp', type=float)
-    parser.add_argument('--gpu_id','-gpu', type=int)
-    parser.add_argument('--batch_size','-bs', type=int)
-    parser.add_argument('--batch_norm','-bn', type=str)
+    
     
 
 
     args = parser.parse_args()
     config_path = f'yml/{args.config_yaml}'    
-              
     config = parse(config_path)
+    
     ## add more config
     config['data']['checkpoint_dir'] = config['data']['result_dir']+ f'/ckpt_{now}/'
     config['data']['train_id'] = str(now)
-    config['tag_kernal'] = args.tag_kernal
-    config['conv_type'] = args.conv_type
-    config['hidden_dim'] = args.hidden_dim
-    config['out_dim'] = args.hidden_dim
-    config['Layer'] = args.Layer
-    config['appnp_rate'] = args.appnp_rate
-    config['batch_norm'] = args.batch_norm
-    
-    config['training']['batch_size'] = args.batch_size
-    config['training']['gpu']['id'] = args.gpu_id
-    
-    
+
     
     if config['sampler']['sampler_true'] :
         sampler_list = config['sampler']['sampler_neighbor']

@@ -1,7 +1,6 @@
 data :
   pickle_dir : '../pickles/'
   pickle_name : 'uav_train.pickle'
-  
   val_pickle_name : 'uav_val.pickle'
   
   shuffle :  True
@@ -10,7 +9,7 @@ data :
 training :
   gpu :
     use : True
-    id : 1
+    id : 0
   seed : 42
   epochs : 10000
   weight_decay : 0.0001 
@@ -21,7 +20,7 @@ training :
   optim : 'Adam'
   batch_size : 4
   eval_interval : 40
-  save_best_epoch_pth : False
+  save_best_epoch_pth : True
 learning_rate :
   scheduler : True
   lr_scheduler : 'cosine' 
@@ -30,13 +29,11 @@ learning_rate :
   gamma : 0.1  #step option
   milsestone : [40,60,150]  # step option  
   
-test :
-  
-  test_pickle_name : 'uav_val.pickle'
-  
-  # wandb_name :  'city_train.pickle_0.001_Adam_256_256_8_8_appnp_8_splce_1643351469'
-  train_id :  '1645798514'
-  ckpt_file : 'final.pth'
+test :  
+  test_pickle_name : 'uav_val_sfcn.pickle'
+  train_id :  '1650239833'
+  ckpt_file : 'epoch_164_ckpt.pth'
+  # ckpt_file : 'final.pth'
   ckpt_dir : 'checkpoints'
   save_result_dir : 'results'
   
@@ -47,8 +44,8 @@ sampler :
   sampler_weight : [0.01, 0.011, 0.0110, 0.1316, 0.012, 0.0145, 1.9920, 0.0995]
   
 # wandb options
-# wandb : False
-wandb : True
+wandb : False
+# wandb : True
 wandb_proj_name : 'SGNN'
 test_mode : False
 
@@ -76,7 +73,7 @@ residual : False
 readout : 0.5
 hidden_dim : 256
 out_dim : 256
-Layer : 12
+Layer : 6
 tag_kernal : 4
 appnp_rate : 0.1
 
