@@ -1,7 +1,7 @@
 # Superpixel-based Graph Convolutional Network for Semantic Segmentation
 ## Introduction
 ### Concept
-Thie repository is an implementation for **Superpixel-GCN**([pdf](./img/Superpixel_GCN.pdf)).    
+Thie repository is an implementation for **Superpixel-GCN**([pdf](./img/project.pdf)).    
 The concept of this framework is regarding Superpixel as a node of an graph.   
 The proposed method aims classify the label of each superpixel(node) using GCN, and convert graph to image again.
 
