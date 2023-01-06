@@ -1,4 +1,7 @@
 # Superpixel-based Graph Convolutional Network for Semantic Segmentation
+## Citation
+Feel free to use this code. No citation needed.
+
 ## Introduction
 ### Concept
 Thie repository is an implementation for **Superpixel-GCN**([pdf](./img/project.pdf)).    
