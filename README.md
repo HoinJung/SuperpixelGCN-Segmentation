@@ -1,6 +1,6 @@
 # Superpixel-based Graph Convolutional Network for Semantic Segmentation
 ## Citation
-Feel free to use this code. No citation needed.
+[![DOI](https://zenodo.org/badge/425904468.svg)](https://zenodo.org/badge/latestdoi/425904468)
 
 ## Introduction
 ### Concept
