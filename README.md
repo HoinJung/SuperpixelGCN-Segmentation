@@ -1,7 +1,19 @@
 # Superpixel-based Graph Convolutional Network for Semantic Segmentation
 ## Citation
 [![DOI](https://zenodo.org/badge/425904468.svg)](https://zenodo.org/badge/latestdoi/425904468)
-
+```
+@software{hoin_jung_2021_7826523,
+  author       = {Hoin Jung},
+  title        = {{Superpixel-based Graph Convolutional Network for 
+                   Semantic Segmentation}},
+  month        = dec,
+  year         = 2021,
+  publisher    = {Zenodo},
+  version      = {0.1.0},
+  doi          = {10.5281/zenodo.7826523},
+  url          = {https://doi.org/10.5281/zenodo.7826523}
+}
+```
 ## Introduction
 ### Concept
 Thie repository is an implementation for **Superpixel-GCN**([pdf](./img/project.pdf)).    
